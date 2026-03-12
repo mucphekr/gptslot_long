@@ -177,7 +177,18 @@ def pick_team_with_capacity(auth: str, max_size: int = 5):
             payload = call_list_api(team_id=team_id, auth=auth)
             data = payload.get("data") or {}
             members = data.get("members") or []
-            pending = data.get("pendingInvites") or []
+            # Một số API trả về pending dưới key `pendingInvites`,
+            # một số khác là `pending`. Ưu tiên pendingInvites nhưng
+            # luôn fallback sang pending để đảm bảo không vượt quá
+            # giới hạn 5 người (tính cả pending).
+            pending = data.get("pendingInvites")
+            if pending is None:
+                pending = data.get("pending") or []
+            else:
+                # nếu cả hai cùng tồn tại, cộng gộp.
+                extra_pending = data.get("pending") or []
+                if extra_pending:
+                    pending = list(pending) + list(extra_pending)
             total = len(members) + len(pending)
             if total < max_size:
                 return team_id, {"members": len(members), "pendingInvites": len(pending), "total": total}
@@ -299,7 +310,15 @@ def assert_team_has_capacity(team_id: str, auth: str, max_size: int) -> dict:
     payload = call_list_api(team_id=team_id, auth=auth)
     data = payload.get("data") or {}
     members = data.get("members") or []
-    pending = data.get("pendingInvites") or []
+    # Tương tự như pick_team_with_capacity: pending có thể nằm ở
+    # `pendingInvites` hoặc `pending`. Đảm bảo tính đủ cả pending.
+    pending = data.get("pendingInvites")
+    if pending is None:
+        pending = data.get("pending") or []
+    else:
+        extra_pending = data.get("pending") or []
+        if extra_pending:
+            pending = list(pending) + list(extra_pending)
     total = len(members) + len(pending)
     if total >= max_size:
         raise RuntimeError(
