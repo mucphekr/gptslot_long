@@ -4,6 +4,7 @@ from datetime import datetime, timezone
 from calendar import monthrange
 from email.message import EmailMessage
 import smtplib
+import time
 
 import requests
 from dotenv import load_dotenv
@@ -108,10 +109,36 @@ def normalize_auth(auth: str):
     return base, f"base64:{auth}"
 
 
+def _request_with_cloudflare_retry(method: str, url: str, timeout: int = 30, retries: int = 3, backoff: float = 1.5):
+    """
+    Thực hiện HTTP request với một chút retry khi bị Cloudflare trả về
+    trang "Just a moment..." (HTTP 403 + HTML challenge).
+
+    Điều này giúp giảm các lỗi lặt vặt do Cloudflare thỉnh thoảng bật
+    challenge ngẫu nhiên, trong khi trước đây API đã từng chạy ổn định.
+    """
+    last_resp = None
+    for attempt in range(retries):
+        resp = requests.request(method=method, url=url, timeout=timeout)
+        last_resp = resp
+        # Nếu không phải 403, hoặc nội dung không giống trang challenge,
+        # trả về luôn (để logic cũ xử lý).
+        text = resp.text or ""
+        if resp.status_code != 403 or "Just a moment" not in text:
+            return resp
+        # Nếu là 403 kiểu Cloudflare challenge và vẫn còn lượt retry,
+        # đợi một chút rồi thử lại.
+        if attempt < retries - 1:
+            time.sleep(backoff)
+            backoff *= 2
+            continue
+    return last_resp
+
+
 def call_list_api(team_id: str, auth: str):
     base, path_auth = normalize_auth(auth)
     url = f"{base}/{path_auth}/{team_id}/list"
-    resp = requests.get(url, timeout=30)
+    resp = _request_with_cloudflare_retry("GET", url, timeout=30)
     try:
         data = resp.json()
     except Exception:
@@ -128,7 +155,7 @@ def call_list_api(team_id: str, auth: str):
 def call_teams_api(auth: str):
     base, path_auth = normalize_auth(auth)
     url = f"{base}/{path_auth}/teams"
-    resp = requests.get(url, timeout=30)
+    resp = _request_with_cloudflare_retry("GET", url, timeout=30)
     try:
         data = resp.json()
     except Exception:
@@ -145,7 +172,7 @@ def call_teams_api(auth: str):
 def call_invite_api(team_id: str, auth: str, member_email: str):
     base, path_auth = normalize_auth(auth)
     url = f"{base}/{path_auth}/{team_id}/invite/{member_email}"
-    resp = requests.post(url, timeout=30)
+    resp = _request_with_cloudflare_retry("POST", url, timeout=30)
     try:
         data = resp.json()
     except Exception:
