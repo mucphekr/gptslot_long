@@ -7,6 +7,7 @@ import smtplib
 import time
 
 import requests
+from requests.exceptions import RequestException, Timeout, ConnectionError, SSLError
 from dotenv import load_dotenv
 from flask import Flask, jsonify, render_template, request
 import gspread
@@ -111,28 +112,54 @@ def normalize_auth(auth: str):
 
 def _request_with_cloudflare_retry(method: str, url: str, timeout: int = 30, retries: int = 3, backoff: float = 1.5):
     """
-    Thực hiện HTTP request với một chút retry khi bị Cloudflare trả về
-    trang "Just a moment..." (HTTP 403 + HTML challenge).
+    Thực hiện HTTP request với retry khi:
+    - Bị Cloudflare trả về trang "Just a moment..." (HTTP 403 + HTML challenge)
+    - Gặp lỗi kết nối (ConnectionError, SSLError, Timeout)
 
     Điều này giúp giảm các lỗi lặt vặt do Cloudflare thỉnh thoảng bật
-    challenge ngẫu nhiên, trong khi trước đây API đã từng chạy ổn định.
+    challenge ngẫu nhiên hoặc các lỗi mạng tạm thời.
     """
+    last_exception = None
     last_resp = None
+    
     for attempt in range(retries):
-        resp = requests.request(method=method, url=url, timeout=timeout)
-        last_resp = resp
-        # Nếu không phải 403, hoặc nội dung không giống trang challenge,
-        # trả về luôn (để logic cũ xử lý).
-        text = resp.text or ""
-        if resp.status_code != 403 or "Just a moment" not in text:
-            return resp
-        # Nếu là 403 kiểu Cloudflare challenge và vẫn còn lượt retry,
-        # đợi một chút rồi thử lại.
-        if attempt < retries - 1:
-            time.sleep(backoff)
-            backoff *= 2
-            continue
-    return last_resp
+        try:
+            resp = requests.request(method=method, url=url, timeout=timeout)
+            last_resp = resp
+            
+            # Nếu không phải 403, hoặc nội dung không giống trang challenge,
+            # trả về luôn (để logic cũ xử lý).
+            text = resp.text or ""
+            if resp.status_code != 403 or "Just a moment" not in text:
+                return resp
+            
+            # Nếu là 403 kiểu Cloudflare challenge và vẫn còn lượt retry,
+            # đợi một chút rồi thử lại.
+            if attempt < retries - 1:
+                time.sleep(backoff)
+                backoff *= 2
+                continue
+                
+        except (ConnectionError, SSLError, Timeout, RequestException) as e:
+            last_exception = e
+            # Nếu vẫn còn lượt retry, đợi một chút rồi thử lại
+            if attempt < retries - 1:
+                time.sleep(backoff)
+                backoff *= 2
+                continue
+            # Nếu hết lượt retry, raise exception cuối cùng
+            raise
+    
+    # Nếu có response cuối cùng (dù là 403), trả về nó
+    if last_resp is not None:
+        return last_resp
+    
+    # Nếu không có response nào thành công, raise exception cuối cùng
+    if last_exception is not None:
+        raise last_exception
+    
+    # Fallback (không nên xảy ra)
+    raise RuntimeError(f"Request failed after {retries} attempts")
 
 
 def call_list_api(team_id: str, auth: str):
