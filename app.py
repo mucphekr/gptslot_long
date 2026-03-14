@@ -122,9 +122,22 @@ def _request_with_cloudflare_retry(method: str, url: str, timeout: int = 30, ret
 
     Điều này giúp giảm các lỗi lặt vặt do Cloudflare thỉnh thoảng bật
     challenge ngẫu nhiên hoặc các lỗi mạng tạm thời.
+    
+    Sử dụng tuple timeout (connect_timeout, read_timeout) để phát hiện
+    lỗi kết nối nhanh hơn và tránh hang quá lâu.
     """
     last_exception = None
     last_resp = None
+    
+    # Sử dụng tuple timeout: (connect_timeout, read_timeout)
+    # Connect timeout ngắn hơn để phát hiện lỗi kết nối nhanh
+    # Read timeout dài hơn để đợi response từ server
+    if isinstance(timeout, (int, float)):
+        connect_timeout = min(10, timeout * 0.3)  # 30% của timeout hoặc tối đa 10s
+        read_timeout = timeout
+        timeout_tuple = (connect_timeout, read_timeout)
+    else:
+        timeout_tuple = timeout
     
     # Sử dụng session để kiểm soát connection tốt hơn
     session = requests.Session()
@@ -136,7 +149,8 @@ def _request_with_cloudflare_retry(method: str, url: str, timeout: int = 30, ret
         for attempt in range(retries):
             try:
                 # Sử dụng stream=True để kiểm soát tốt hơn việc đọc response
-                resp = session.request(method=method, url=url, timeout=timeout, stream=True)
+                # Sử dụng tuple timeout để phát hiện lỗi kết nối nhanh hơn
+                resp = session.request(method=method, url=url, timeout=timeout_tuple, stream=True)
                 last_resp = resp
                 
                 # Đọc response body có thể gây ra lỗi SSL/socket
@@ -203,7 +217,7 @@ def _request_with_cloudflare_retry(method: str, url: str, timeout: int = 30, ret
 def call_list_api(team_id: str, auth: str):
     base, path_auth = normalize_auth(auth)
     url = f"{base}/{path_auth}/{team_id}/list"
-    resp = _request_with_cloudflare_retry("GET", url, timeout=30)
+    resp = _request_with_cloudflare_retry("GET", url, timeout=25, retries=2)
     try:
         data = resp.json()
     except Exception:
@@ -224,7 +238,7 @@ def call_list_api(team_id: str, auth: str):
 def call_teams_api(auth: str):
     base, path_auth = normalize_auth(auth)
     url = f"{base}/{path_auth}/teams"
-    resp = _request_with_cloudflare_retry("GET", url, timeout=30)
+    resp = _request_with_cloudflare_retry("GET", url, timeout=25, retries=2)
     try:
         data = resp.json()
     except Exception:
@@ -245,7 +259,7 @@ def call_teams_api(auth: str):
 def call_invite_api(team_id: str, auth: str, member_email: str):
     base, path_auth = normalize_auth(auth)
     url = f"{base}/{path_auth}/{team_id}/invite/{member_email}"
-    resp = _request_with_cloudflare_retry("POST", url, timeout=30)
+    resp = _request_with_cloudflare_retry("POST", url, timeout=25, retries=2)
     try:
         data = resp.json()
     except Exception:
