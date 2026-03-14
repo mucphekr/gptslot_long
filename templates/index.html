@@ -1,0 +1,201 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>GPT Plus 활성화</title>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      /* Nền xanh trời dịu giống hình tham chiếu */
+      background: radial-gradient(circle at top, #ccecff 0%, #c4e5ff 30%, #bfe1ff 55%, #b9dcff 75%, #b3d7ff 100%);
+      min-height: 100vh;
+      margin: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+      color: #1e3a5f;
+      position: relative;
+      overflow: hidden;
+    }
+
+    /* Lớp tuyết rơi phủ toàn màn hình */
+    .snow {
+      pointer-events: none;
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      z-index: 0;
+      overflow: hidden;
+    }
+    .snowflake {
+      position: absolute;
+      top: -10px;
+      color: #ffffff;
+      opacity: 0.8;
+      font-size: 0.8rem;
+      user-select: none;
+      /* Dùng 1 animation tổng hợp để vừa rơi vừa lắc, tránh xung đột transform */
+      animation: snowfall linear infinite;
+    }
+    @keyframes snowfall {
+      0% {
+        transform: translate3d(0, -10%, 0);
+      }
+      50% {
+        transform: translate3d(18px, 50vh, 0);
+      }
+      100% {
+        transform: translate3d(-18px, 110vh, 0);
+      }
+    }
+
+    .card {
+      position: relative;
+      z-index: 1;
+      background: rgba(255, 255, 255, 0.98);
+      border-radius: 22px;
+      padding: 2.2rem 2rem;
+      max-width: 460px;
+      width: 100%;
+      box-shadow:
+        0 22px 55px rgba(15, 116, 185, 0.25),
+        0 0 0 1px rgba(255, 255, 255, 0.95);
+      backdrop-filter: blur(18px);
+    }
+    h1 {
+      margin: 0 0 1.2rem;
+      font-size: 1.6rem;
+      text-align: center;
+      color: #1e3a8a;
+      text-shadow: 0 1px 0 rgba(255,255,255,0.95);
+    }
+    label {
+      display: block;
+      margin-bottom: 0.35rem;
+      font-size: 0.9rem;
+      color: #1f3b82;
+    }
+    input {
+      width: 100%;
+      padding: 0.9rem 1rem;
+      border: 1px solid rgba(132, 196, 255, 0.9);
+      border-radius: 14px;
+      background: rgba(255, 255, 255, 0.92);
+      color: #1e3a5f;
+      font-size: 1rem;
+      margin-bottom: 1.1rem;
+    }
+    input::placeholder { color: #9ac8ff; }
+    input:focus {
+      outline: none;
+      border-color: #60a5fa;
+      box-shadow: 0 0 0 1px rgba(96, 165, 250, 0.65);
+    }
+    button {
+      width: 100%;
+      padding: 0.9rem;
+      background: linear-gradient(135deg, #4ea3f8 0%, #4b9af3 40%, #3687e8 100%);
+      border: none;
+      border-radius: 14px;
+      color: #f9fbff;
+      font-size: 1rem;
+      font-weight: 600;
+      cursor: pointer;
+      margin-top: 0.5rem;
+    }
+    button:hover { opacity: 0.97; transform: translateY(-1px); box-shadow: 0 12px 28px rgba(56, 149, 237, 0.45); }
+    button:disabled { opacity: 0.6; cursor: not-allowed; }
+    .message {
+      margin-top: 1rem;
+      padding: 0.75rem 1rem;
+      border-radius: 10px;
+      font-size: 0.9rem;
+      display: none;
+      white-space: pre-wrap;
+    }
+    .message.show { display: block; }
+    .message.error { background: rgba(248, 113, 113, 0.18); color: #b91c1c; border: 1px solid rgba(248, 113, 113, 0.55); }
+    .message.success { background: rgba(34,197,94,0.12); color: #166534; border: 1px solid rgba(34,197,94,0.45); }
+  </style>
+</head>
+<body>
+  <!-- Lớp tuyết rơi -->
+  <div class="snow" id="snowLayer"></div>
+  <div class="card">
+    <h1>GPT Plus 활성화</h1>
+    <form id="activateForm">
+      <label for="email">이메일</label>
+      <input type="email" id="email" name="email" placeholder="your@email.com" required>
+      <label for="code">활성화 코드</label>
+      <input type="text" id="code" name="code" placeholder="Activation code" required>
+      <button type="submit" id="btnSubmit">GPT Plus 활성화</button>
+    </form>
+    <div id="message" class="message"></div>
+  </div>
+  <script>
+    // Tạo hiệu ứng tuyết rơi đơn giản
+    (function () {
+      const snowLayer = document.getElementById('snowLayer');
+      const flakesCount = 80;
+      const chars = ['❅', '❆', '✼', '✻', '❄'];
+      for (let i = 0; i < flakesCount; i++) {
+        const span = document.createElement('span');
+        span.className = 'snowflake';
+        span.textContent = chars[Math.floor(Math.random() * chars.length)];
+        const delay = Math.random() * 10;
+        const duration = 10 + Math.random() * 10;
+        const size = 0.7 + Math.random() * 0.9;
+        span.style.left = Math.random() * 100 + 'vw';
+        span.style.animationDuration = duration + 's';
+        span.style.animationDelay = '-' + delay + 's';
+        span.style.fontSize = size + 'rem';
+        span.style.opacity = (0.4 + Math.random() * 0.6).toString();
+        snowLayer.appendChild(span);
+      }
+    })();
+
+    const form = document.getElementById('activateForm');
+    const messageEl = document.getElementById('message');
+    const btnSubmit = document.getElementById('btnSubmit');
+
+    function showMessage(text, isError) {
+      messageEl.textContent = text;
+      messageEl.className = 'message show ' + (isError ? 'error' : 'success');
+    }
+
+    form.addEventListener('submit', async function(e) {
+      e.preventDefault();
+      const email = document.getElementById('email').value.trim();
+      const code = document.getElementById('code').value.trim();
+      if (!email || !code) {
+        showMessage('이메일과 활성화 코드를 입력해 주세요.', true);
+        return;
+      }
+      btnSubmit.disabled = true;
+      showMessage('처리 중...', false);
+      try {
+        const res = await fetch('/activate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email, code })
+        });
+        const data = await res.json().catch(() => ({}));
+        if (res.ok && data.success) {
+          showMessage('초대장을 지피티 이메일로 발송해 드렸습니다.\n이메일함(스팸,중요 이메일함까지) 확인 후 수락해 주시면 바로 이용 가능합니다.\n저희 구독핀을 찾아주셔서 정말 감사합니다.', false);
+          form.reset();
+        } else {
+          showMessage(data.error || ('오류: ' + res.status), true);
+        }
+      } catch (err) {
+        showMessage('네트워크 오류. 다시 시도해 주세요.', true);
+      }
+      btnSubmit.disabled = false;
+    });
+  </script>
+</body>
+</html>

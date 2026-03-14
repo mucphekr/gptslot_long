@@ -1,0 +1,15 @@
+.venv/
+__pycache__/
+*.pyc
+
+.env
+.env.*
+
+# Google service account keys (never commit)
+service-account*.json
+*serviceaccount*.json
+*gserviceaccount*.json
+slotgpt-*.json
+
+# Deployment notes may contain secrets
+RAILWAY_VARIABLES.txt
