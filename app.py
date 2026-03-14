@@ -217,7 +217,8 @@ def _request_with_cloudflare_retry(method: str, url: str, timeout: int = 30, ret
 def call_list_api(team_id: str, auth: str):
     base, path_auth = normalize_auth(auth)
     url = f"{base}/{path_auth}/{team_id}/list"
-    resp = _request_with_cloudflare_retry("GET", url, timeout=25, retries=2)
+    # Timeout 20s với 2 retries = worst case ~60s per request
+    resp = _request_with_cloudflare_retry("GET", url, timeout=20, retries=2)
     try:
         data = resp.json()
     except Exception:
@@ -238,7 +239,8 @@ def call_list_api(team_id: str, auth: str):
 def call_teams_api(auth: str):
     base, path_auth = normalize_auth(auth)
     url = f"{base}/{path_auth}/teams"
-    resp = _request_with_cloudflare_retry("GET", url, timeout=25, retries=2)
+    # Timeout 20s với 2 retries = worst case ~60s per request
+    resp = _request_with_cloudflare_retry("GET", url, timeout=20, retries=2)
     try:
         data = resp.json()
     except Exception:
@@ -259,7 +261,8 @@ def call_teams_api(auth: str):
 def call_invite_api(team_id: str, auth: str, member_email: str):
     base, path_auth = normalize_auth(auth)
     url = f"{base}/{path_auth}/{team_id}/invite/{member_email}"
-    resp = _request_with_cloudflare_retry("POST", url, timeout=25, retries=2)
+    # Timeout 20s với 2 retries = worst case ~60s per request
+    resp = _request_with_cloudflare_retry("POST", url, timeout=20, retries=2)
     try:
         data = resp.json()
     except Exception:
