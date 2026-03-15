@@ -259,6 +259,11 @@ def call_teams_api(auth: str):
         err = data.get("error") or "Teams failed"
         raise RuntimeError(f"{code}: {err}")
 
+    # Debug: log response structure để kiểm tra format
+    if bool_env("DEBUG_TEAMS_API", False):
+        import json as json_module
+        print(f"[DEBUG] call_teams_api response: {json_module.dumps(data, indent=2)}")
+
     return data
 
 
@@ -287,15 +292,51 @@ def call_invite_api(team_id: str, auth: str, member_email: str):
 
 def pick_team_with_capacity(auth: str, max_size: int = 5):
     teams_payload = call_teams_api(auth=auth)
-    teams_data = (teams_payload.get("data") or {}).get("teams") or []
+    
+    # Hỗ trợ nhiều format response:
+    # 1. {"data": {"teams": [...]}}
+    # 2. {"teams": [...]}
+    # 3. [...] (array trực tiếp)
+    teams_data = []
+    if isinstance(teams_payload, dict):
+        if "data" in teams_payload and isinstance(teams_payload["data"], dict):
+            teams_data = teams_payload["data"].get("teams") or []
+        elif "teams" in teams_payload:
+            teams_data = teams_payload["teams"] or []
+        elif isinstance(teams_payload.get("data"), list):
+            teams_data = teams_payload["data"]
+    elif isinstance(teams_payload, list):
+        teams_data = teams_payload
+    
+    if not isinstance(teams_data, list):
+        teams_data = []
+    
     team_ids = []
     for t in teams_data:
-        tid = str(t.get("id") or t.get("_id") or t.get("teamId") or "").strip()
+        if not isinstance(t, dict):
+            continue
+        # Thử nhiều key có thể chứa teamId
+        tid = str(
+            t.get("id") 
+            or t.get("_id") 
+            or t.get("teamId") 
+            or t.get("team_id")
+            or t.get("teamID")
+            or ""
+        ).strip()
         if tid:
             team_ids.append(tid)
 
     if not team_ids:
-        raise RuntimeError("Không lấy được danh sách teamId từ endpoint /teams.")
+        # Debug: log để xem response structure
+        import json as json_module
+        debug_info = {
+            "response_keys": list(teams_payload.keys()) if isinstance(teams_payload, dict) else "not_dict",
+            "teams_data_type": type(teams_data).__name__,
+            "teams_data_length": len(teams_data) if isinstance(teams_data, list) else 0,
+            "first_team_sample": teams_data[0] if isinstance(teams_data, list) and len(teams_data) > 0 else None,
+        }
+        raise RuntimeError(f"Không lấy được danh sách teamId từ endpoint /teams. Debug: {json_module.dumps(debug_info, indent=2)}")
 
     last_err = None
     for team_id in team_ids:
@@ -328,12 +369,40 @@ def pick_team_with_capacity(auth: str, max_size: int = 5):
 
 def invite_with_failover(auth: str, member_email: str, max_size: int):
     teams_payload = call_teams_api(auth=auth)
-    teams_data = (teams_payload.get("data") or {}).get("teams") or []
+    
+    # Hỗ trợ nhiều format response:
+    # 1. {"data": {"teams": [...]}}
+    # 2. {"teams": [...]}
+    # 3. [...] (array trực tiếp)
+    teams_data = []
+    if isinstance(teams_payload, dict):
+        if "data" in teams_payload and isinstance(teams_payload["data"], dict):
+            teams_data = teams_payload["data"].get("teams") or []
+        elif "teams" in teams_payload:
+            teams_data = teams_payload["teams"] or []
+        elif isinstance(teams_payload.get("data"), list):
+            teams_data = teams_payload["data"]
+    elif isinstance(teams_payload, list):
+        teams_data = teams_payload
+    
+    if not isinstance(teams_data, list):
+        teams_data = []
+    
     team_ids: list[str] = []
     # Lưu lại meta để có thể in ra tên team cùng với id
     team_meta: dict[str, dict] = {}
     for t in teams_data:
-        tid = str(t.get("id") or t.get("_id") or t.get("teamId") or "").strip()
+        if not isinstance(t, dict):
+            continue
+        # Thử nhiều key có thể chứa teamId
+        tid = str(
+            t.get("id") 
+            or t.get("_id") 
+            or t.get("teamId") 
+            or t.get("team_id")
+            or t.get("teamID")
+            or ""
+        ).strip()
         if not tid:
             continue
         name = str(
@@ -347,7 +416,15 @@ def invite_with_failover(auth: str, member_email: str, max_size: int):
         team_meta[tid] = {"name": name}
 
     if not team_ids:
-        raise RuntimeError("Không lấy được danh sách teamId từ endpoint /teams.")
+        # Debug: log để xem response structure
+        import json as json_module
+        debug_info = {
+            "response_keys": list(teams_payload.keys()) if isinstance(teams_payload, dict) else "not_dict",
+            "teams_data_type": type(teams_data).__name__,
+            "teams_data_length": len(teams_data) if isinstance(teams_data, list) else 0,
+            "first_team_sample": teams_data[0] if isinstance(teams_data, list) and len(teams_data) > 0 else None,
+        }
+        raise RuntimeError(f"Không lấy được danh sách teamId từ endpoint /teams. Debug: {json_module.dumps(debug_info, indent=2)}")
 
     last_err = None
     tried: list[str] = []
