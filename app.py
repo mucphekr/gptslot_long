@@ -219,11 +219,11 @@ def _request_with_cloudflare_retry(method: str, url: str, timeout: int = 30, ret
 
 
 def call_list_api(team_id: str, auth: str):
-    # Sử dụng endpoint public: https://trandinhat.tokyo/api/public/{team_id}/list
+    # Sử dụng endpoint public: https://trandinhat.tokyo/api/public/list-members
     base = os.getenv("MANAGETEAM_BASE_URL", "https://trandinhat.tokyo/api").rstrip("/")
-    url = f"{base}/public/{team_id}/list"
+    url = f"{base}/public/list-members"
     # Timeout 20s với 2 retries = worst case ~60s per request
-    resp = _request_with_cloudflare_retry("GET", url, timeout=20, retries=2)
+    resp = _request_with_cloudflare_retry("POST", url, timeout=20, retries=2, json={"teamId": team_id})
     try:
         data = resp.json()
     except Exception:
