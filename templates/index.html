@@ -3,197 +3,234 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>GPT Plus 활성화</title>
+  <title>멤버 추가</title>
   <style>
     * { box-sizing: border-box; }
     body {
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-      /* Nền xanh trời dịu giống hình tham chiếu */
-      background: radial-gradient(circle at top, #ccecff 0%, #c4e5ff 30%, #bfe1ff 55%, #b9dcff 75%, #b3d7ff 100%);
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
       min-height: 100vh;
       margin: 0;
       display: flex;
       align-items: center;
       justify-content: center;
       padding: 20px;
-      color: #1e3a5f;
-      position: relative;
-      overflow: hidden;
     }
-
-    /* Lớp tuyết rơi phủ toàn màn hình */
-    .snow {
-      pointer-events: none;
-      position: fixed;
-      top: 0;
-      left: 0;
-      width: 100%;
-      height: 100%;
-      z-index: 0;
-      overflow: hidden;
-    }
-    .snowflake {
-      position: absolute;
-      top: -10px;
-      color: #ffffff;
-      opacity: 0.8;
-      font-size: 0.8rem;
-      user-select: none;
-      /* Dùng 1 animation tổng hợp để vừa rơi vừa lắc, tránh xung đột transform */
-      animation: snowfall linear infinite;
-    }
-    @keyframes snowfall {
-      0% {
-        transform: translate3d(0, -10%, 0);
-      }
-      50% {
-        transform: translate3d(18px, 50vh, 0);
-      }
-      100% {
-        transform: translate3d(-18px, 110vh, 0);
-      }
-    }
-
     .card {
-      position: relative;
-      z-index: 1;
-      background: rgba(255, 255, 255, 0.98);
-      border-radius: 22px;
-      padding: 2.2rem 2rem;
-      max-width: 460px;
+      background: white;
+      border-radius: 16px;
+      padding: 2rem;
+      max-width: 500px;
       width: 100%;
-      box-shadow:
-        0 22px 55px rgba(15, 116, 185, 0.25),
-        0 0 0 1px rgba(255, 255, 255, 0.95);
-      backdrop-filter: blur(18px);
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
     }
     h1 {
-      margin: 0 0 1.2rem;
-      font-size: 1.6rem;
+      margin: 0 0 1.5rem;
+      font-size: 1.8rem;
       text-align: center;
-      color: #1e3a8a;
-      text-shadow: 0 1px 0 rgba(255,255,255,0.95);
+      color: #333;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.5rem;
+    }
+    h1 .icon {
+      font-size: 1.8rem;
+    }
+    .input-wrapper {
+      position: relative;
+      margin-bottom: 1.5rem;
+    }
+    .input-wrapper .icon {
+      position: absolute;
+      left: 1rem;
+      top: 50%;
+      transform: translateY(-50%);
+      font-size: 1.2rem;
+      color: #999;
+      pointer-events: none;
+    }
+    .input-wrapper input {
+      padding-left: 3rem;
     }
     label {
       display: block;
-      margin-bottom: 0.35rem;
-      font-size: 0.9rem;
-      color: #1f3b82;
+      margin-bottom: 0.5rem;
+      font-size: 0.95rem;
+      color: #555;
+      font-weight: 500;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+    label .icon {
+      font-size: 1rem;
     }
     input {
       width: 100%;
       padding: 0.9rem 1rem;
-      border: 1px solid rgba(132, 196, 255, 0.9);
-      border-radius: 14px;
-      background: rgba(255, 255, 255, 0.92);
-      color: #1e3a5f;
+      border: 2px solid #e0e0e0;
+      border-radius: 8px;
+      background: #fff;
+      color: #333;
       font-size: 1rem;
-      margin-bottom: 1.1rem;
+      transition: border-color 0.3s;
     }
-    input::placeholder { color: #9ac8ff; }
     input:focus {
       outline: none;
-      border-color: #60a5fa;
-      box-shadow: 0 0 0 1px rgba(96, 165, 250, 0.65);
+      border-color: #667eea;
     }
     button {
       width: 100%;
       padding: 0.9rem;
-      background: linear-gradient(135deg, #4ea3f8 0%, #4b9af3 40%, #3687e8 100%);
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
       border: none;
-      border-radius: 14px;
-      color: #f9fbff;
+      border-radius: 8px;
+      color: white;
       font-size: 1rem;
       font-weight: 600;
       cursor: pointer;
-      margin-top: 0.5rem;
+      transition: transform 0.2s, box-shadow 0.2s;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.5rem;
     }
-    button:hover { opacity: 0.97; transform: translateY(-1px); box-shadow: 0 12px 28px rgba(56, 149, 237, 0.45); }
-    button:disabled { opacity: 0.6; cursor: not-allowed; }
+    button:hover:not(:disabled) {
+      transform: translateY(-2px);
+      box-shadow: 0 10px 20px rgba(102, 126, 234, 0.4);
+    }
+    button:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
     .message {
       margin-top: 1rem;
       padding: 0.75rem 1rem;
-      border-radius: 10px;
+      border-radius: 8px;
       font-size: 0.9rem;
       display: none;
       white-space: pre-wrap;
     }
     .message.show { display: block; }
-    .message.error { background: rgba(248, 113, 113, 0.18); color: #b91c1c; border: 1px solid rgba(248, 113, 113, 0.55); }
-    .message.success { background: rgba(34,197,94,0.12); color: #166534; border: 1px solid rgba(34,197,94,0.45); }
+    .message.error {
+      background: #fee;
+      color: #c33;
+      border: 1px solid #fcc;
+    }
+    .message.success {
+      background: #efe;
+      color: #3c3;
+      border: 1px solid #cfc;
+      display: flex;
+      align-items: flex-start;
+      gap: 0.75rem;
+      line-height: 1.6;
+    }
+    .message.success .icon {
+      font-size: 1.3rem;
+      flex-shrink: 0;
+      margin-top: 0.1rem;
+    }
+    .message.error {
+      display: flex;
+      align-items: flex-start;
+      gap: 0.75rem;
+    }
+    .message.error .icon {
+      font-size: 1.3rem;
+      flex-shrink: 0;
+      margin-top: 0.1rem;
+    }
+    .message-content {
+      flex: 1;
+    }
   </style>
 </head>
 <body>
-  <!-- Lớp tuyết rơi -->
-  <div class="snow" id="snowLayer"></div>
   <div class="card">
-    <h1>GPT Plus 활성화</h1>
-    <form id="activateForm">
-      <label for="email">이메일</label>
-      <input type="email" id="email" name="email" placeholder="your@email.com" required>
-      <label for="code">활성화 코드</label>
-      <input type="text" id="code" name="code" placeholder="Activation code" required>
-      <button type="submit" id="btnSubmit">GPT Plus 활성화</button>
+    <h1><span class="icon">👥</span> 멤버 추가</h1>
+    <form id="addMemberForm">
+      <label for="code"><span class="icon">🔑</span> 활성화 코드</label>
+      <div class="input-wrapper">
+        <span class="icon">🔐</span>
+        <input type="text" id="code" name="code" placeholder="활성화 코드를 입력하세요" required>
+      </div>
+      <label for="email"><span class="icon">📧</span> 이메일</label>
+      <div class="input-wrapper">
+        <span class="icon">✉️</span>
+        <input type="email" id="email" name="email" placeholder="example@email.com" required>
+      </div>
+      <button type="submit" id="btnSubmit">
+        <span class="icon">➕</span>
+        <span>멤버 추가</span>
+      </button>
     </form>
-    <div id="message" class="message"></div>
+    <div id="message" class="message">
+      <span class="icon"></span>
+      <span class="message-content"></span>
+    </div>
   </div>
   <script>
-    // Tạo hiệu ứng tuyết rơi đơn giản
-    (function () {
-      const snowLayer = document.getElementById('snowLayer');
-      const flakesCount = 80;
-      const chars = ['❅', '❆', '✼', '✻', '❄'];
-      for (let i = 0; i < flakesCount; i++) {
-        const span = document.createElement('span');
-        span.className = 'snowflake';
-        span.textContent = chars[Math.floor(Math.random() * chars.length)];
-        const delay = Math.random() * 10;
-        const duration = 10 + Math.random() * 10;
-        const size = 0.7 + Math.random() * 0.9;
-        span.style.left = Math.random() * 100 + 'vw';
-        span.style.animationDuration = duration + 's';
-        span.style.animationDelay = '-' + delay + 's';
-        span.style.fontSize = size + 'rem';
-        span.style.opacity = (0.4 + Math.random() * 0.6).toString();
-        snowLayer.appendChild(span);
-      }
-    })();
-
-    const form = document.getElementById('activateForm');
+    const form = document.getElementById('addMemberForm');
     const messageEl = document.getElementById('message');
     const btnSubmit = document.getElementById('btnSubmit');
 
     function showMessage(text, isError) {
-      messageEl.textContent = text;
+      const iconEl = messageEl.querySelector('.icon');
+      const contentEl = messageEl.querySelector('.message-content');
+      
+      if (isError) {
+        iconEl.textContent = '❌';
+      } else {
+        iconEl.textContent = '✅';
+      }
+      
+      contentEl.textContent = text;
       messageEl.className = 'message show ' + (isError ? 'error' : 'success');
     }
 
     form.addEventListener('submit', async function(e) {
       e.preventDefault();
-      const email = document.getElementById('email').value.trim();
       const code = document.getElementById('code').value.trim();
-      if (!email || !code) {
-        showMessage('이메일과 활성화 코드를 입력해 주세요.', true);
+      const email = document.getElementById('email').value.trim();
+      
+      if (!code) {
+        showMessage('활성화 코드를 입력해주세요.', true);
         return;
       }
+      
+      if (!email) {
+        showMessage('이메일을 입력해주세요.', true);
+        return;
+      }
+      
       btnSubmit.disabled = true;
-      showMessage('처리 중...', false);
+      const iconEl = messageEl.querySelector('.icon');
+      const contentEl = messageEl.querySelector('.message-content');
+      iconEl.textContent = '⏳';
+      contentEl.textContent = '처리 중...';
+      messageEl.className = 'message show success';
+      
       try {
-        const res = await fetch('/activate', {
+        const res = await fetch('/add-member', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ email, code })
+          body: JSON.stringify({ code, email })
         });
+        
         const data = await res.json().catch(() => ({}));
+        
         if (res.ok && data.success) {
-          showMessage('초대장을 지피티 이메일로 발송해 드렸습니다.\n이메일함(스팸,중요 이메일함까지) 확인 후 수락해 주시면 바로 이용 가능합니다.\n저희 구독핀을 찾아주셔서 정말 감사합니다.', false);
+          showMessage('초대장을 지피티 이메일로 발송해 드렸습니다.\n이메일함 확인 후 수락해 주시면 바로 이용 가능합니다.\n저희 구독핀 이용해주셔서 감사합니다!', false);
           form.reset();
         } else {
           showMessage(data.error || ('오류: ' + res.status), true);
         }
       } catch (err) {
-        showMessage('네트워크 오류. 다시 시도해 주세요.', true);
+        showMessage('연결 오류. 다시 시도해주세요.', true);
       }
+      
       btnSubmit.disabled = false;
     });
   </script>
