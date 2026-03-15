@@ -103,7 +103,7 @@ def find_code_row(ws_codes, code: str):
 
 
 def normalize_auth(auth: str):
-    base = os.getenv("MANAGETEAM_BASE_URL", "https://kendev.id.vn/api").rstrip("/")
+    base = os.getenv("MANAGETEAM_BASE_URL", "https://trandinhat.tokyo/api").rstrip("/")
     auth = auth.strip()
     if auth.lower().startswith("base64:"):
         return base, auth
@@ -112,7 +112,7 @@ def normalize_auth(auth: str):
     return base, f"base64:{auth}"
 
 
-def _request_with_cloudflare_retry(method: str, url: str, timeout: int = 30, retries: int = 3, backoff: float = 1.5):
+def _request_with_cloudflare_retry(method: str, url: str, timeout: int = 30, retries: int = 3, backoff: float = 1.5, json=None):
     """
     Thực hiện HTTP request với retry khi:
     - Bị Cloudflare trả về trang "Just a moment..." (HTTP 403 + HTML challenge)
@@ -125,6 +125,9 @@ def _request_with_cloudflare_retry(method: str, url: str, timeout: int = 30, ret
     
     Sử dụng tuple timeout (connect_timeout, read_timeout) để phát hiện
     lỗi kết nối nhanh hơn và tránh hang quá lâu.
+    
+    Args:
+        json: Optional dict to send as JSON in the request body
     """
     last_exception = None
     last_resp = None
@@ -150,7 +153,7 @@ def _request_with_cloudflare_retry(method: str, url: str, timeout: int = 30, ret
             try:
                 # Sử dụng stream=True để kiểm soát tốt hơn việc đọc response
                 # Sử dụng tuple timeout để phát hiện lỗi kết nối nhanh hơn
-                resp = session.request(method=method, url=url, timeout=timeout_tuple, stream=True)
+                resp = session.request(method=method, url=url, timeout=timeout_tuple, stream=True, json=json)
                 last_resp = resp
                 
                 # Đọc response body có thể gây ra lỗi SSL/socket
@@ -259,10 +262,11 @@ def call_teams_api(auth: str):
 
 
 def call_invite_api(team_id: str, auth: str, member_email: str):
-    base, path_auth = normalize_auth(auth)
-    url = f"{base}/{path_auth}/{team_id}/invite/{member_email}"
+    # Sử dụng endpoint mới: https://trandinhat.tokyo/api/public/add-member
+    base = os.getenv("MANAGETEAM_BASE_URL", "https://trandinhat.tokyo/api").rstrip("/")
+    url = f"{base}/public/add-member"
     # Timeout 20s với 2 retries = worst case ~60s per request
-    resp = _request_with_cloudflare_retry("POST", url, timeout=20, retries=2)
+    resp = _request_with_cloudflare_retry("POST", url, timeout=20, retries=2, json={"email": member_email})
     try:
         data = resp.json()
     except Exception:
