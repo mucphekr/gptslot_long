@@ -103,7 +103,7 @@ def find_code_row(ws_codes, code: str):
 
 
 def normalize_auth(auth: str):
-    base = os.getenv("MANAGETEAM_BASE_URL", "https://trandinhat.tokyo/api").rstrip("/")
+    base = os.getenv("MANAGETEAM_BASE_URL", "https://kendev.id.vn/api").rstrip("/")
     auth = auth.strip()
     if auth.lower().startswith("base64:"):
         return base, auth
@@ -112,7 +112,7 @@ def normalize_auth(auth: str):
     return base, f"base64:{auth}"
 
 
-def _request_with_cloudflare_retry(method: str, url: str, timeout: int = 30, retries: int = 3, backoff: float = 1.5, **kwargs):
+def _request_with_cloudflare_retry(method: str, url: str, timeout: int = 30, retries: int = 3, backoff: float = 1.5):
     """
     Thực hiện HTTP request với retry khi:
     - Bị Cloudflare trả về trang "Just a moment..." (HTTP 403 + HTML challenge)
@@ -150,7 +150,7 @@ def _request_with_cloudflare_retry(method: str, url: str, timeout: int = 30, ret
             try:
                 # Sử dụng stream=True để kiểm soát tốt hơn việc đọc response
                 # Sử dụng tuple timeout để phát hiện lỗi kết nối nhanh hơn
-                resp = session.request(method=method, url=url, timeout=timeout_tuple, stream=True, **kwargs)
+                resp = session.request(method=method, url=url, timeout=timeout_tuple, stream=True)
                 last_resp = resp
                 
                 # Đọc response body có thể gây ra lỗi SSL/socket
@@ -214,34 +214,178 @@ def _request_with_cloudflare_retry(method: str, url: str, timeout: int = 30, ret
     raise RuntimeError(f"Request failed after {retries} attempts")
 
 
+def call_list_api(team_id: str, auth: str):
+    base, path_auth = normalize_auth(auth)
+    url = f"{base}/{path_auth}/{team_id}/list"
+    # Timeout 20s với 2 retries = worst case ~60s per request
+    resp = _request_with_cloudflare_retry("GET", url, timeout=20, retries=2)
+    try:
+        data = resp.json()
+    except Exception:
+        try:
+            error_text = resp.text
+        except (SSLError, ConnectionError, socket.error, ssl.SSLError, OSError):
+            error_text = f"Failed to read response body (status={resp.status_code})"
+        data = {"success": False, "error": error_text}
+
+    if resp.status_code >= 400 or not data.get("success", False):
+        code = data.get("code") or f"HTTP_{resp.status_code}"
+        err = data.get("error") or "List failed"
+        raise RuntimeError(f"{code}: {err}")
+
+    return data
+
+
+def call_teams_api(auth: str):
+    base, path_auth = normalize_auth(auth)
+    url = f"{base}/{path_auth}/teams"
+    # Timeout 20s với 2 retries = worst case ~60s per request
+    resp = _request_with_cloudflare_retry("GET", url, timeout=20, retries=2)
+    try:
+        data = resp.json()
+    except Exception:
+        try:
+            error_text = resp.text
+        except (SSLError, ConnectionError, socket.error, ssl.SSLError, OSError):
+            error_text = f"Failed to read response body (status={resp.status_code})"
+        data = {"success": False, "error": error_text}
+
+    if resp.status_code >= 400 or not data.get("success", False):
+        code = data.get("code") or f"HTTP_{resp.status_code}"
+        err = data.get("error") or "Teams failed"
+        raise RuntimeError(f"{code}: {err}")
+
+    return data
+
+
+def call_invite_api(team_id: str, auth: str, member_email: str):
+    base, path_auth = normalize_auth(auth)
+    url = f"{base}/{path_auth}/{team_id}/invite/{member_email}"
+    # Timeout 20s với 2 retries = worst case ~60s per request
+    resp = _request_with_cloudflare_retry("POST", url, timeout=20, retries=2)
+    try:
+        data = resp.json()
+    except Exception:
+        try:
+            error_text = resp.text
+        except (SSLError, ConnectionError, socket.error, ssl.SSLError, OSError):
+            error_text = f"Failed to read response body (status={resp.status_code})"
+        data = {"success": False, "error": error_text}
+
+    if resp.status_code >= 400 or not data.get("success", False):
+        code = data.get("code") or f"HTTP_{resp.status_code}"
+        err = data.get("error") or "Invite failed"
+        raise RuntimeError(f"{code}: {err}")
+
+    return data
+
+
+def pick_team_with_capacity(auth: str, max_size: int = 5):
+    teams_payload = call_teams_api(auth=auth)
+    teams_data = (teams_payload.get("data") or {}).get("teams") or []
+    team_ids = []
+    for t in teams_data:
+        tid = str(t.get("id") or t.get("_id") or t.get("teamId") or "").strip()
+        if tid:
+            team_ids.append(tid)
+
+    if not team_ids:
+        raise RuntimeError("Không lấy được danh sách teamId từ endpoint /teams.")
+
+    last_err = None
+    for team_id in team_ids:
+        try:
+            payload = call_list_api(team_id=team_id, auth=auth)
+            data = payload.get("data") or {}
+            members = data.get("members") or []
+            # Một số API trả về pending dưới key `pendingInvites`,
+            # một số khác là `pending`. Ưu tiên pendingInvites nhưng
+            # luôn fallback sang pending để đảm bảo không vượt quá
+            # giới hạn 5 người (tính cả pending).
+            pending = data.get("pendingInvites")
+            if pending is None:
+                pending = data.get("pending") or []
+            else:
+                # nếu cả hai cùng tồn tại, cộng gộp.
+                extra_pending = data.get("pending") or []
+                if extra_pending:
+                    pending = list(pending) + list(extra_pending)
+            total = len(members) + len(pending)
+            if total < max_size:
+                return team_id, {"members": len(members), "pendingInvites": len(pending), "total": total}
+        except Exception as e:
+            last_err = str(e)
+            continue
+    if last_err:
+        raise RuntimeError(f"Không tìm được team phù hợp. Lỗi cuối: {last_err}")
+    raise RuntimeError("Không tìm được team phù hợp (tất cả team đã đủ 5 người tính cả pending).")
+
 
 def invite_with_failover(auth: str, member_email: str, max_size: int):
-    base = os.getenv("MANAGETEAM_BASE_URL", "https://trandinhat.tokyo/api").rstrip("/")
-    url = f"{base}/public/add-member"
-    
-    try:
-        resp = requests.post(url, json={"email": member_email}, timeout=30)
-        data = resp.json()
-    except requests.exceptions.JSONDecodeError:
-        raise RuntimeError(f"Server trả về HTML thay vì JSON (HTTP {resp.status_code}). Kiểm tra lại URL API.")
-    except Exception as e:
-        raise RuntimeError(f"Không thể kết nối tới server: {e}")
+    teams_payload = call_teams_api(auth=auth)
+    teams_data = (teams_payload.get("data") or {}).get("teams") or []
+    team_ids: list[str] = []
+    # Lưu lại meta để có thể in ra tên team cùng với id
+    team_meta: dict[str, dict] = {}
+    for t in teams_data:
+        tid = str(t.get("id") or t.get("_id") or t.get("teamId") or "").strip()
+        if not tid:
+            continue
+        name = str(
+            t.get("name")
+            or t.get("teamName")
+            or t.get("label")
+            or t.get("title")
+            or ""
+        ).strip()
+        team_ids.append(tid)
+        team_meta[tid] = {"name": name}
 
-    if resp.status_code >= 400 or not data.get("success"):
-        err = data.get("error") or "Lỗi thêm thành viên"
-        raise RuntimeError(f"{err}")
+    if not team_ids:
+        raise RuntimeError("Không lấy được danh sách teamId từ endpoint /teams.")
 
-    team_name = data.get("team") or "Unknown Team"
-    members_count = data.get("members") or "?/5"
-    
-    return {
-        "team_id": team_name,
-        "team_name": team_name,
-        "capacity": {"total": members_count},
-        "invited": data,
-        "tried_ids": [team_name],
-        "tried": [team_name]
-    }
+    last_err = None
+    tried: list[str] = []
+    for team_id in team_ids:
+        tried.append(team_id)
+        try:
+            cap = assert_team_has_capacity(team_id=team_id, auth=auth, max_size=max_size)
+            invited_payload = call_invite_api(team_id=team_id, auth=auth, member_email=member_email)
+            team_name = (team_meta.get(team_id) or {}).get("name") or ""
+            # danh sách "name(id)" để debug / hiển thị
+            pretty_tried: list[str] = []
+            for tid in tried:
+                meta = team_meta.get(tid) or {}
+                tname = (meta.get("name") or "").strip()
+                if tname:
+                    pretty_tried.append(f"{tname}({tid})")
+                else:
+                    pretty_tried.append(tid)
+            return {
+                "team_id": team_id,
+                "team_name": team_name,
+                "capacity": cap,
+                "invited": invited_payload,
+                "tried_ids": tried,
+                "tried": pretty_tried,
+            }
+        except Exception as e:
+            last_err = str(e)
+            continue
+
+    msg = f"Không mời được vào bất kỳ team nào. Lỗi cuối: {last_err}"
+    if tried:
+        # thêm tên team cho dễ debug: "TeamName(id)"
+        pretty_tried_err: list[str] = []
+        for tid in tried[:8]:
+            meta = team_meta.get(tid) or {}
+            tname = (meta.get("name") or "").strip()
+            if tname:
+                pretty_tried_err.append(f"{tname}({tid})")
+            else:
+                pretty_tried_err.append(tid)
+        msg += f" | tried={','.join(pretty_tried_err)}{'...' if len(tried) > 8 else ''}"
+    raise RuntimeError(msg)
 
 def ensure_code_sheet_columns(ws_codes, required_headers: list[str]):
     headers = ws_codes.row_values(1)
@@ -319,6 +463,25 @@ def get_max_team_size() -> int:
         return 5
 
 
+def assert_team_has_capacity(team_id: str, auth: str, max_size: int) -> dict:
+    payload = call_list_api(team_id=team_id, auth=auth)
+    data = payload.get("data") or {}
+    members = data.get("members") or []
+    # Tương tự như pick_team_with_capacity: pending có thể nằm ở
+    # `pendingInvites` hoặc `pending`. Đảm bảo tính đủ cả pending.
+    pending = data.get("pendingInvites")
+    if pending is None:
+        pending = data.get("pending") or []
+    else:
+        extra_pending = data.get("pending") or []
+        if extra_pending:
+            pending = list(pending) + list(extra_pending)
+    total = len(members) + len(pending)
+    if total >= max_size:
+        raise RuntimeError(
+            f"Team đã đủ {max_size} (members={len(members)}, pending={len(pending)}). Vui lòng thử lại."
+        )
+    return {"members": len(members), "pendingInvites": len(pending), "total": total}
 
 
 def maybe_send_smtp_email(to_email: str, activation_code: str):
@@ -381,6 +544,10 @@ def activate():
 
     ts = utc_now_iso()
 
+    auth = (os.getenv("MANAGETEAM_AUTH", "") or "").strip()
+    if not auth:
+        return jsonify({"success": False, "error": "Thiếu env MANAGETEAM_AUTH."}), 500
+
     cols = ensure_code_sheet_columns(
         ws_codes,
         ["code", "activated_at", "expires_at", "email", "team_id", "team_name", "status", "error"],
@@ -410,7 +577,7 @@ def activate():
 
     try:
         max_size = get_max_team_size()
-        invite_info = invite_with_failover(auth="", member_email=email, max_size=max_size)
+        invite_info = invite_with_failover(auth=auth, member_email=email, max_size=max_size)
         team_id = invite_info["team_id"]
         team_name = invite_info.get("team_name", "") or ""
         cap = invite_info["capacity"]
