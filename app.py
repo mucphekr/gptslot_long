@@ -322,6 +322,7 @@ def pick_team_with_capacity(auth: str, max_size: int = 5):
             or t.get("teamId") 
             or t.get("team_id")
             or t.get("teamID")
+            or t.get("accountId")  # API có thể trả về accountId thay vì teamId
             or ""
         ).strip()
         if tid:
@@ -401,6 +402,7 @@ def invite_with_failover(auth: str, member_email: str, max_size: int):
             or t.get("teamId") 
             or t.get("team_id")
             or t.get("teamID")
+            or t.get("accountId")  # API có thể trả về accountId thay vì teamId
             or ""
         ).strip()
         if not tid:
