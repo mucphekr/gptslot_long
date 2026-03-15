@@ -240,8 +240,9 @@ def call_list_api(team_id: str, auth: str):
 
 
 def call_teams_api(auth: str):
-    base, path_auth = normalize_auth(auth)
-    url = f"{base}/{path_auth}/teams"
+    # Sử dụng endpoint public: https://trandinhat.tokyo/api/public/teams
+    base = os.getenv("MANAGETEAM_BASE_URL", "https://trandinhat.tokyo/api").rstrip("/")
+    url = f"{base}/public/teams"
     # Timeout 20s với 2 retries = worst case ~60s per request
     resp = _request_with_cloudflare_retry("GET", url, timeout=20, retries=2)
     try:
