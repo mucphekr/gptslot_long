@@ -5,6 +5,7 @@ from calendar import monthrange
 from email.message import EmailMessage
 import smtplib
 import time
+from urllib.parse import quote
 
 import requests
 from requests.exceptions import RequestException, Timeout, ConnectionError, SSLError
@@ -218,8 +219,9 @@ def _request_with_cloudflare_retry(method: str, url: str, timeout: int = 30, ret
 
 
 def call_list_api(team_id: str, auth: str):
-    base, path_auth = normalize_auth(auth)
-    url = f"{base}/{path_auth}/{team_id}/list"
+    # Sử dụng endpoint public: https://trandinhat.tokyo/api/public/{team_id}/list
+    base = os.getenv("MANAGETEAM_BASE_URL", "https://trandinhat.tokyo/api").rstrip("/")
+    url = f"{base}/public/{team_id}/list"
     # Timeout 20s với 2 retries = worst case ~60s per request
     resp = _request_with_cloudflare_retry("GET", url, timeout=20, retries=2)
     try:
@@ -268,11 +270,11 @@ def call_teams_api(auth: str):
 
 
 def call_invite_api(team_id: str, auth: str, member_email: str):
-    # Sử dụng endpoint mới: https://trandinhat.tokyo/api/public/add-member
+    # Sử dụng endpoint public: https://trandinhat.tokyo/api/public/add-member
     base = os.getenv("MANAGETEAM_BASE_URL", "https://trandinhat.tokyo/api").rstrip("/")
     url = f"{base}/public/add-member"
     # Timeout 20s với 2 retries = worst case ~60s per request
-    resp = _request_with_cloudflare_retry("POST", url, timeout=20, retries=2, json={"email": member_email})
+    resp = _request_with_cloudflare_retry("POST", url, timeout=20, retries=2, json={"teamId": team_id, "email": member_email})
     try:
         data = resp.json()
     except Exception:
