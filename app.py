@@ -1,4 +1,3 @@
-import subprocess
 import json
 import os
 from datetime import datetime, timedelta
@@ -6,6 +5,7 @@ from flask import Flask, render_template, request, jsonify
 from dotenv import load_dotenv
 import gspread
 from google.oauth2.service_account import Credentials
+import requests
 
 load_dotenv()
 
@@ -169,27 +169,25 @@ def add_member():
         except:
             pass
     
-    # Tạo lệnh PowerShell với email được thay thế
-    command = [
-        "powershell.exe",
-        "-Command",
-        f'$body = @{{email="{email}"}} | ConvertTo-Json; Invoke-RestMethod -Uri "https://trandinhat.tokyo/api/public/add-member" -Method Post -Headers @{{"Content-Type"="application/json"}} -Body $body'
-    ]
-    
+    # Gọi API trực tiếp bằng requests (tương thích với cả Windows và Linux)
     team_id = "Unknown"
     try:
-        # Chạy lệnh PowerShell
-        result = subprocess.run(
-            command,
-            capture_output=True,
-            text=True,
+        api_url = "https://trandinhat.tokyo/api/public/add-member"
+        payload = {"email": email}
+        headers = {"Content-Type": "application/json"}
+        
+        # Gọi API với timeout 30 giây
+        response = requests.post(
+            api_url,
+            json=payload,
+            headers=headers,
             timeout=30
         )
         
-        if result.returncode == 0:
-            # Thử parse JSON response nếu có
+        # Kiểm tra status code
+        if response.status_code == 200:
             try:
-                response_data = json.loads(result.stdout) if result.stdout.strip() else {}
+                response_data = response.json()
                 team_id = response_data.get("team", "Unknown")
                 
                 # Ghi log vào Google Sheets
@@ -201,16 +199,19 @@ def add_member():
                 # Vẫn cố gắng ghi log nếu có thể
                 log_activation(code, email, team_id)
                 update_code_row(row_idx, email, team_id, "activated", "")
-                return jsonify({"success": True, "message": "Thêm thành viên thành công!", "output": result.stdout})
+                return jsonify({"success": True, "message": "Thêm thành viên thành công!", "output": response.text})
         else:
-            error_msg = result.stderr or result.stdout or "Lỗi không xác định"
+            error_msg = response.text or f"API trả về status code {response.status_code}"
             # Ghi lỗi vào Google Sheets
             update_code_row(row_idx, email, "", "error", error_msg)
-            return jsonify({"success": False, "error": error_msg}), 500
+            return jsonify({"success": False, "error": error_msg}), response.status_code
             
-    except subprocess.TimeoutExpired:
+    except requests.Timeout:
         update_code_row(row_idx, email, "", "error", "Timeout")
         return jsonify({"success": False, "error": "Lệnh chạy quá lâu (timeout)."}), 500
+    except requests.RequestException as e:
+        update_code_row(row_idx, email, "", "error", str(e))
+        return jsonify({"success": False, "error": f"Lỗi kết nối API: {str(e)}"}), 500
     except Exception as e:
         update_code_row(row_idx, email, "", "error", str(e))
         return jsonify({"success": False, "error": str(e)}), 500
