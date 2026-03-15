@@ -39,34 +39,56 @@ def get_sheet():
     """Lấy Google Sheet theo ID"""
     client = get_google_sheets_client()
     if not client:
+        print("❌ Không thể khởi tạo Google Sheets client")
         return None
     sheet_id = os.getenv("GOOGLE_SHEET_ID")
     if not sheet_id:
+        print("❌ GOOGLE_SHEET_ID không được cấu hình")
         return None
     try:
-        return client.open_by_key(sheet_id)
+        sheet = client.open_by_key(sheet_id)
+        print(f"✅ Đã mở Google Sheet: {sheet.title}")
+        return sheet
     except Exception as e:
-        print(f"Lỗi mở Google Sheet: {e}")
+        print(f"❌ Lỗi mở Google Sheet (ID: {sheet_id}): {e}")
+        import traceback
+        traceback.print_exc()
         return None
 
 def find_code_in_sheet(code: str):
     """Tìm code trong tab 'codes' và trả về row index và data"""
     sheet = get_sheet()
     if not sheet:
+        print(f"❌ Không thể mở Google Sheet để tìm code: {code}")
         return None, None
     
     try:
         worksheet = sheet.worksheet("codes")
+        print(f"✅ Đã mở worksheet 'codes'")
+        
         all_records = worksheet.get_all_records()
+        print(f"📊 Tổng số records: {len(all_records)}")
+        
+        # Debug: Hiển thị headers
+        headers = worksheet.row_values(1)
+        print(f"📋 Headers: {headers}")
         
         for idx, record in enumerate(all_records, start=2):  # start=2 vì row 1 là header
             # Thử cả "code" và "CODE" để tương thích với cả hai format
             code_value = record.get("code") or record.get("CODE") or ""
             if code_value.strip().upper() == code.strip().upper():
+                print(f"✅ Tìm thấy code '{code}' tại row {idx}")
                 return idx, record
+        
+        print(f"❌ Không tìm thấy code '{code}' trong {len(all_records)} records")
+        return None, None
+    except gspread.exceptions.WorksheetNotFound:
+        print(f"❌ Tab 'codes' không tồn tại trong sheet")
         return None, None
     except Exception as e:
-        print(f"Lỗi tìm code trong sheet: {e}")
+        print(f"❌ Lỗi tìm code '{code}' trong sheet: {e}")
+        import traceback
+        traceback.print_exc()
         return None, None
 
 def update_code_row(row_idx: int, email: str, team_id: str, status: str = "activated", error: str = ""):
@@ -149,9 +171,12 @@ def add_member():
         return jsonify({"success": False, "error": "Vui lòng nhập code kích hoạt."}), 400
     
     # Kiểm tra code trong Google Sheets
+    print(f"\n🔍 Đang kiểm tra code: {code}")
     row_idx, code_record = find_code_in_sheet(code)
     if not code_record:
+        print(f"❌ Code '{code}' không hợp lệ hoặc không tồn tại")
         return jsonify({"success": False, "error": "Code không hợp lệ hoặc không tồn tại."}), 400
+    print(f"✅ Code '{code}' hợp lệ, tiếp tục xử lý...")
     
     # Kiểm tra code đã được kích hoạt chưa
     if code_record.get("status", "").lower() == "activated":
