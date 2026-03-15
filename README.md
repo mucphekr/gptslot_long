@@ -118,7 +118,7 @@ Notes:
 
 ## Base URL / Địa chỉ gốc
 
-- Production: `https://kendev.id.vn/api`  
+- Production: `https://trandinhat.tokyo/api`  
 - Local: `http://localhost:3000/api`
 
 ---
@@ -202,15 +202,15 @@ Error format:
 cURL
 ```bash
 # List members
-curl "https://kendev.id.vn/api/user@email.com:password/TEAM_ID/list"
+curl "https://trandinhat.tokyo/api/user@email.com:password/TEAM_ID/list"
 
 # Invite
-curl -X POST "https://kendev.id.vn/api/user@email.com:password/TEAM_ID/invite/new@email.com"
+curl -X POST "https://trandinhat.tokyo/api/user@email.com:password/TEAM_ID/invite/new@email.com"
 ```
 
 JavaScript (fetch)
 ```javascript
-const BASE = 'https://kendev.id.vn/api';
+const BASE = 'https://trandinhat.tokyo/api';
 const AUTH = 'user@example.com:password';
 const TEAM = 'your-team-id';
 
