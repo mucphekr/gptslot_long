@@ -11,6 +11,49 @@ load_dotenv()
 
 app = Flask(__name__)
 
+# Telegram notify (optional)
+def send_telegram_invite_notification(*, email: str, code: str, team: str, when: datetime) -> bool:
+    """
+    Gửi thông báo qua Telegram Bot API.
+    Bật bằng cách set env:
+      - TELEGRAM_BOT_TOKEN
+      - TELEGRAM_CHAT_ID (ID user hoặc group; group thường là số âm)
+    """
+    token = (os.getenv("TELEGRAM_BOT_TOKEN") or "").strip()
+    chat_id = (os.getenv("TELEGRAM_CHAT_ID") or "").strip()
+    if not token or not chat_id:
+        return False
+
+    ts = when.strftime("%Y-%m-%d %H:%M:%S")
+    text = "\n".join(
+        [
+            "📨 Invite created",
+            f"Email: {email}",
+            f"Code: {code}",
+            f"Team: {team}",
+            f"Thời gian: {ts}",
+        ]
+    )
+
+    try:
+        resp = requests.post(
+            f"https://api.telegram.org/bot{token}/sendMessage",
+            json={
+                "chat_id": chat_id,
+                "text": text,
+                "disable_web_page_preview": True,
+            },
+            timeout=15,
+        )
+        if resp.status_code != 200:
+            print(f"Telegram sendMessage failed: {resp.status_code} {resp.text}")
+            return False
+        return True
+    except Exception as e:
+        print(f"Telegram sendMessage exception: {e}")
+        return False
+
+
 # Google Sheets setup
 def get_google_sheets_client():
     """Khởi tạo client Google Sheets"""
@@ -196,6 +239,7 @@ def add_member():
     
     # Gọi API trực tiếp bằng requests (tương thích với cả Windows và Linux)
     team_id = "Unknown"
+    now = datetime.now()
     try:
         api_url = "https://trandinhat.tokyo/api/public/add-member"
         payload = {"email": email}
@@ -218,12 +262,17 @@ def add_member():
                 # Ghi log vào Google Sheets
                 log_activation(code, email, team_id)
                 update_code_row(row_idx, email, team_id, "activated", "")
+
+                # Thông báo Telegram (không ảnh hưởng response nếu fail)
+                send_telegram_invite_notification(email=email, code=code, team=team_id, when=now)
                 
                 return jsonify({"success": True, "data": response_data, "message": "Thêm thành viên thành công!"})
             except Exception as parse_err:
                 # Vẫn cố gắng ghi log nếu có thể
                 log_activation(code, email, team_id)
                 update_code_row(row_idx, email, team_id, "activated", "")
+
+                send_telegram_invite_notification(email=email, code=code, team=team_id, when=now)
                 return jsonify({"success": True, "message": "Thêm thành viên thành công!", "output": response.text})
         else:
             error_msg = response.text or f"API trả về status code {response.status_code}"

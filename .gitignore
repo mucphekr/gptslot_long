@@ -4,6 +4,7 @@ __pycache__/
 
 .env
 .env.*
+!.env.example
 
 # Google service account keys (never commit)
 service-account*.json
